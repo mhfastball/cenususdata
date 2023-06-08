@@ -6,8 +6,8 @@ from fuzzywuzzy import process
 def fuzzy_match(query, choices):
     return process.extractOne(query, choices, scorer=fuzz.token_sort_ratio)[0]
 
-def main(file, query):
-    cc = Consensus_Census('Male,Female,Population,Hispanic')
+def main(file, query, category_string):
+    cc = Consensus_Census(category_string)
 
     full_census = cc.return_census(file)
     sales_rep = ensemble_locs(query)
