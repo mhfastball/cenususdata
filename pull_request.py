@@ -5,14 +5,14 @@ import numpy as np
 
 class Consensus_Census():
 
-    def __init__(self, groups):
+    def __init__(self, groups, api_key):
         self.foos = []
         self.dfs = []
         self.groups = groups.split(',')
         self.split_groups = []
+        self.api = api_key
 
     def agg_micro_url(self, qtype, vars, geo, deets=""):
-        api = '&key=2589f43bff5f44c4ac00f35fb41c462745f0c07c'
         if deets == "":
             getsum = '?get=' + 'NAME,' + vars
             geog = '&for=' + geo
@@ -21,12 +21,12 @@ class Consensus_Census():
             geog = '&for=' + geo + '&in=' + deets
         if qtype == 'aggregate':
             agg = 'http://api.census.gov/data/2021/acs/acs5'
-            url = agg + getsum + geog + api
+            url = agg + getsum + geog + self.api
             print(url)
             return url
         elif qtype == 'micro':
             micro = 'http://api.census.gov/data/2021/acs/acs5/pums'
-            url = micro + getsum + geog + api
+            url = micro + getsum + geog + self.api
             print(url)
             return url
 
