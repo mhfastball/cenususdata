@@ -3,14 +3,14 @@ import requests
 import us
 import numpy as np
 
-class Consensus_Census():
+class ConsensusCensus:
 
     def __init__(self, groups, api_key):
         self.foos = []
         self.dfs = []
-        self.groups = groups.split(',')
-        self.split_groups = []
-        self.api = api_key
+        self.groups = groups.split(',')#figure this out
+        self.split_groups = []#still need this?
+        self.api = '&key=' + api_key
 
     def agg_micro_url(self, qtype, vars, geo, deets=""):
         if deets == "":
@@ -51,22 +51,30 @@ class Consensus_Census():
             self.foos.append(bar)
         return self.foos
 
-    def census_readin(self, census_file):
-        cd = pd.read_csv(census_file, index_col=False)
-        cd['census_data'] = cd['description'].str.split("!!").apply(lambda x: ''.join(x[-2:]))
-        col_dict = dict(zip(cd['code'], cd['census_data']))
-        census_var = cd.code.tolist()
-        census_query = self.split_list(census_var, 49)
-        for x in range(len(census_query)):
-            df = self.return_df('aggregate', census_query[x], 'place:*', 'state:*')
-            self.dfs.append(df)
-        return self.dfs, col_dict
-
     def df_list_merge(self, df_list):
         df_list_index = df_list[0]
         for x in range(1, len(df_list)):
             df_list_index = df_list_index.merge(df_list[x], on=['NAME', 'state', 'place'], suffixes=('', '_right'))
         return df_list_index
+
+    def census_dl(self, cd):#cd short for census dataframe
+        #cd = pd.read_csv(census_file, index_col=False)
+        cd['census_data'] = cd['label'].str.split("!!").apply(lambda x: ''.join(x[-2:]))
+        #translate from census column ID to the label
+        col_dict = dict(zip(cd['name'], cd['census_data']))
+        census_var = cd['name'].tolist()
+        census_query = self.split_list(census_var, 49)
+        for x in range(len(census_query)):
+            df = self.return_df('aggregate', census_query[x], 'place:*', 'state:*')
+            self.dfs.append(df)
+        df = self.df_list_merge(self.dfs)
+        df['state_abr'] = [us.states.lookup(fips).abbr if us.states.lookup(fips) else fips for fips in df.state]
+        df['state_abr'] = ['DC' if x == '11' else x for x in df.state_abr]
+        df['city'], df['state'] = df['NAME'].str.split(',', 1).str
+        df.city = [x.upper() for x in df.city]
+        #renames columns using column dict above
+        df.rename(columns=lambda y: col_dict[y] if y in col_dict else y, inplace=True)
+        return df
 
     def divide_makeup(self, df):
         for group in self.groups:
@@ -82,19 +90,13 @@ class Consensus_Census():
                 filter_df = filter_df.reindex(sorted(filter_df.columns, key=lambda x: group in x), axis=1)
             self.split_groups.append(filter_df)
 
-    def return_census(self, file):
-        df_list, col_dict = self.census_readin(file)
-        bigone = self.df_list_merge(df_list)
-        bigone['state_abr'] = [us.states.lookup(fips).abbr if us.states.lookup(fips) else fips for fips in bigone.state]
-        bigone['state_abr'] = ['DC' if x == '11' else x for x in bigone.state_abr]
-        bigone['city'], bigone['state'] = bigone['NAME'].str.split(',', 1).str
-        bigone.city = [x.upper() for x in bigone.city]
-        bigone.rename(columns=lambda x: col_dict[x] if x in col_dict else x, inplace=True)
-        bigone.set_index('NAME', inplace=True)
-        self.divide_makeup(bigone)
+    def return_census(self, df):
+        df = self.census_dl(df)
+        df.set_index('NAME', inplace=True)
+        self.divide_makeup(df)
         for ind, keyw in enumerate(self.groups):
-            bigone = bigone.merge(self.split_groups[ind], how='right', left_index=True, right_index=True, suffixes=('_left', ''))
-            cols_to_drop = bigone.filter(like='_left').columns
-            bigone = bigone.drop(columns=cols_to_drop)
-        bigone.reset_index(inplace=True)
-        return bigone
+            df = df.merge(self.split_groups[ind], how='right', left_index=True, right_index=True, suffixes=('_left', ''))
+            cols_to_drop = df.filter(like='_left').columns
+            df = df.drop(columns=cols_to_drop)
+        df.reset_index(inplace=True)
+        return df

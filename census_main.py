@@ -1,16 +1,17 @@
-from ensemble import ensemble_locs
-from pull_request import Consensus_Census
+from ensemble import ensemble_locs, local_census
+from pull_request import ConsensusCensus
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 
 def fuzzy_match(query, choices):
     return process.extractOne(query, choices, scorer=fuzz.token_sort_ratio)[0]
 
-def main(file, query, category_string, census_api_key):
-    cc = Consensus_Census(category_string, census_api_key)
+def main(local_query, db_query, category_string, census_api_key):
+    cc = ConsensusCensus(category_string, census_api_key)#category string are the groups such as Male/Female etc.
 
-    full_census = cc.return_census(file)
-    sales_rep = ensemble_locs(query)
+    db_census = local_census(local_query)#pull in column headers
+    full_census = cc.return_census(db_census)#download and engineer census data
+    sales_rep = ensemble_locs(db_query)#pull in sales rep location data
 
     #return only specific states to speed lookup
     specific_states = sales_rep.state_abr.unique().tolist()
