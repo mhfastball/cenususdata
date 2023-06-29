@@ -5,36 +5,29 @@ import numpy as np
 
 class ConsensusCensus:
 
-    def __init__(self, groups, api_key):
+    def __init__(self, api_key):
         self.foos = []
         self.dfs = []
-        self.groups = groups.split(',')#figure this out
         self.split_groups = []#still need this?
         self.api = '&key=' + api_key
 
-    def agg_micro_url(self, qtype, vars, geo, deets=""):
+    def agg_micro_url(self, url_query, vars_query, geo, deets=""):
         if deets == "":
-            getsum = '?get=' + 'NAME,' + vars
+            getsum = '?get=' + 'NAME,' + vars_query
             geog = '&for=' + geo
         else:
-            getsum = '?get=' + 'NAME,' + vars
+            getsum = '?get=' + 'NAME,' + vars_query
             geog = '&for=' + geo + '&in=' + deets
-        if qtype == 'aggregate':
-            agg = 'http://api.census.gov/data/2021/acs/acs5'
-            url = agg + getsum + geog + self.api
-            print(url)
-            return url
-        elif qtype == 'micro':
-            micro = 'http://api.census.gov/data/2021/acs/acs5/pums'
-            url = micro + getsum + geog + self.api
-            print(url)
-            return url
+        url = url_query+ getsum + geog + self.api
+        print(url)
+        return url
 
-    def return_df(self, qtype, vars, geo, deets=None):
+    #adjust to take in queries
+    def return_df(self, url_query, var_query, geo, deets=None):
         if deets is not None:
-            url = self.agg_micro_url(qtype, vars, geo, deets)
+            url = self.agg_micro_url(url_query, var_query, geo, deets)
         else:
-            url = self.agg_micro_url(qtype, vars, geo)
+            url = self.agg_micro_url(url_query, var_query, geo)
         response = requests.get(url)
         if response.status_code == 200:
             json_data = response.json()
@@ -57,7 +50,7 @@ class ConsensusCensus:
             df_list_index = df_list_index.merge(df_list[x], on=['NAME', 'state', 'place'], suffixes=('', '_right'))
         return df_list_index
 
-    def census_dl(self, cd):#cd short for census dataframe
+    def census_dl(self, url_query, cd):#cd short for census dataframe
         #cd = pd.read_csv(census_file, index_col=False)
         cd['census_data'] = cd['label'].str.split("!!").apply(lambda x: ''.join(x[-2:]))
         #translate from census column ID to the label
@@ -65,7 +58,7 @@ class ConsensusCensus:
         census_var = cd['name'].tolist()
         census_query = self.split_list(census_var, 49)
         for x in range(len(census_query)):
-            df = self.return_df('aggregate', census_query[x], 'place:*', 'state:*')
+            df = self.return_df(url_query, census_query[x], 'place:*', 'state:*')
             self.dfs.append(df)
         df = self.df_list_merge(self.dfs)
         df['state_abr'] = [us.states.lookup(fips).abbr if us.states.lookup(fips) else fips for fips in df.state]
@@ -90,13 +83,15 @@ class ConsensusCensus:
                 filter_df = filter_df.reindex(sorted(filter_df.columns, key=lambda x: group in x), axis=1)
             self.split_groups.append(filter_df)
 
-    def return_census(self, df):
-        df = self.census_dl(df)
+    def return_census(self, url_query, df):
+        df = self.census_dl(url_query, df)
         df.set_index('NAME', inplace=True)
-        self.divide_makeup(df)
+        '''
+        self.divide_makeup(df) 
         for ind, keyw in enumerate(self.groups):
             df = df.merge(self.split_groups[ind], how='right', left_index=True, right_index=True, suffixes=('_left', ''))
             cols_to_drop = df.filter(like='_left').columns
             df = df.drop(columns=cols_to_drop)
         df.reset_index(inplace=True)
+        '''
         return df
